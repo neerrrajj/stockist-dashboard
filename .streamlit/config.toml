@@ -1,0 +1,16 @@
+[theme]
+# Dark theme to match the dashboard design
+base = "dark"
+primaryColor = "#6366f1"
+backgroundColor = "#0a0a0f"
+secondaryBackgroundColor = "#13131a"
+textColor = "#e8e8f0"
+font = "sans serif"
+
+[server]
+# Enable file watcher for automatic reload during development
+runOnSave = true
+
+[browser]
+# Gather usage statistics (set to false to disable)
+gatherUsageStats = false
