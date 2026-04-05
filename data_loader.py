@@ -52,12 +52,78 @@ def load_from_xlsx(path: str) -> dict[str, pd.DataFrame]:
 
 # ── Normalisation helpers ─────────────────────────────────────────────────────
 
+import re
+
+def _clean_number(val):
+    """Clean a single number value by removing currency symbols and commas."""
+    if pd.isna(val):
+        return val
+    s = str(val)
+    # Remove currency symbols, commas, and whitespace using regex
+    s = re.sub(r'[₹$,\s]', '', s)
+    # Replace unicode minus with regular minus
+    s = s.replace('−', '-')
+    # Check for invalid values
+    if s in ['', 'nan', 'NaN', 'None', '#DIV/0!', '#VALUE!', '#REF!', '#N/A', 'inf', '-inf']:
+        return pd.NA
+    try:
+        return float(s)
+    except:
+        return pd.NA
+
 def _to_num(series: pd.Series) -> pd.Series:
-    return pd.to_numeric(series, errors="coerce")
+    """Convert to numeric, handling currency symbols, commas, and other formatting."""
+    return series.apply(_clean_number)
 
 
 def _to_date(series: pd.Series) -> pd.Series:
-    return pd.to_datetime(series, errors="coerce", dayfirst=True)
+    """Parse dates, handling multiple formats including '16-Dec' style dates."""
+    from datetime import datetime
+    
+    current_year = datetime.now().year
+    
+    def parse_date(val):
+        if pd.isna(val):
+            return pd.NaT
+        s = str(val).strip()
+        if s in ['', 'nan', 'NaN', 'None']:
+            return pd.NaT
+        
+        # Try to parse various formats - Data is in MM/DD/YYYY format
+        formats_to_try = [
+            ("%d-%b-%Y", None),     # 16-Dec-2025
+            ("%d-%b", "infer"),     # 16-Dec (infer year from month)
+            ("%m/%d/%Y", None),     # 4/1/2026 -> April 1, 2026 (MONTH FIRST - US format)
+            ("%m/%d/%y", None),     # 4/1/26 -> April 1, 2026
+            ("%d/%m/%Y", None),     # 1/4/2026 -> Jan 4, 2026 (fallback - IN format)
+            ("%d/%m/%y", None),     # 1/4/26 -> Jan 4, 2026 (fallback)
+            ("%Y-%m-%d", None),     # 2025-12-16
+        ]
+        
+        for fmt, year_handling in formats_to_try:
+            try:
+                parsed = datetime.strptime(s, fmt)
+                
+                # Infer year for dates without year specified
+                if year_handling == "infer":
+                    # December dates are likely from previous year
+                    # Jan-Mar dates are likely from current year
+                    if parsed.month == 12:
+                        parsed = parsed.replace(year=current_year - 1)
+                    else:
+                        parsed = parsed.replace(year=current_year)
+                
+                return parsed
+            except ValueError:
+                continue
+        
+        # Fallback to pandas parser with dayfirst=False (US format)
+        try:
+            return pd.to_datetime(s, dayfirst=False)
+        except:
+            return pd.NaT
+    
+    return series.apply(parse_date)
 
 
 def _normalise_product(s: pd.Series) -> pd.Series:
