@@ -3,6 +3,7 @@
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from formatters import format_indian_currency, format_indian_number, format_date_short
 
 PLOT_THEME = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -78,15 +79,15 @@ def render(sales, inventory, batch, pricelist):
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1: 
-        st.metric("Total Inventory Value", f"₹{total_value:,.0f}")
+        st.metric("Total Inventory Value", format_indian_currency(total_value))
     with c2: 
-        st.metric("🔴 Critical (< 7d)", str(int(critical_cnt)))
+        st.metric("🔴 Critical (< 7d)", format_indian_number(critical_cnt, 0))
     with c3: 
-        st.metric("🟡 Low (7–15d)", str(int(low_cnt)))
+        st.metric("🟡 Low (7–15d)", format_indian_number(low_cnt, 0))
     with c4: 
-        st.metric("🔵 Excess (60d+)", str(int(excess_cnt)))
+        st.metric("🔵 Excess (60d+)", format_indian_number(excess_cnt, 0))
     with c5: 
-        st.metric("Avg Batch Age", f"{avg_batch_age:.0f} days")
+        st.metric("Avg Batch Age", f"{format_indian_number(avg_batch_age)} days")
 
     st.divider()
 
@@ -146,21 +147,24 @@ def render(sales, inventory, batch, pricelist):
         "Suggested restock value": "Restock Value (₹)",
     })
 
+    # Format for Indian style
+    restock_formatted = restock_table.copy()
+    for col in ["Closing Stock", "Units/Day", "Days Left", f"Restock Qty ({RESTOCK_DAYS}d)"]:
+        if col in restock_formatted.columns:
+            restock_formatted[col] = restock_formatted[col].apply(lambda x: format_indian_number(x, 2 if 'Day' in col and 'Left' not in col else 0))
+    for col in ["Inventory value", "Restock Value (₹)", "Avg cost"]:
+        if col in restock_formatted.columns:
+            restock_formatted[col] = restock_formatted[col].apply(lambda x: format_indian_currency(x))
+    
     st.dataframe(
-        restock_table, use_container_width=True, hide_index=True,
-        column_config={
-            "Units/Day":          st.column_config.NumberColumn(format="%.2f"),
-            "Days Left":          st.column_config.NumberColumn(format="%.0f"),
-            f"Restock Qty ({RESTOCK_DAYS}d)": st.column_config.NumberColumn(format="%.0f"),
-            "Restock Value (₹)":  st.column_config.NumberColumn(format="₹%.0f"),
-        }
+        restock_formatted, use_container_width=True, hide_index=True,
     )
 
     total_restock_value = inv["Suggested restock value"].sum()
     st.markdown(
         f"<div style='text-align:right;font-family:DM Mono,monospace;font-size:0.8rem;"
         f"color:#a78bfa;margin-top:0.5rem'>Estimated restock capital required: "
-        f"<strong>₹{total_restock_value:,.0f}</strong></div>",
+        f"<strong>{format_indian_currency(total_restock_value)}</strong></div>",
         unsafe_allow_html=True,
     )
 
@@ -214,12 +218,14 @@ def render(sales, inventory, batch, pricelist):
 
         batch_display["Flag"] = batch_display["Days in Stock"].apply(_age_color)
 
+        # Format for Indian style
+        batch_formatted = batch_display.copy()
+        batch_formatted["Date"] = batch_formatted["Date"].apply(lambda x: format_date_short(x))
+        batch_formatted["Purchase Cost"] = batch_formatted["Purchase Cost"].apply(lambda x: format_indian_currency(x, 2))
+        batch_formatted["Days in Stock"] = batch_formatted["Days in Stock"].apply(lambda x: format_indian_number(x))
+        
         st.dataframe(
-            batch_display, use_container_width=True, hide_index=True,
-            column_config={
-                "Purchase Cost": st.column_config.NumberColumn(format="₹%.2f"),
-                "Days in Stock": st.column_config.NumberColumn(format="%.0f"),
-            }
+            batch_formatted, use_container_width=True, hide_index=True,
         )
     else:
         st.info("No batch data available.")

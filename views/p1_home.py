@@ -3,6 +3,7 @@
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from formatters import format_indian_currency, format_indian_number, format_percentage
 
 PLOT_THEME = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -47,24 +48,24 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
 
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        st.metric("Total Revenue", f"₹{total_revenue:,.0f}")
+        st.metric("Total Revenue", format_indian_currency(total_revenue))
     with col2:
-        st.metric("Total Profit", f"₹{total_profit:,.0f}")
+        st.metric("Total Profit", format_indian_currency(total_profit))
     with col3:
-        st.metric("Avg Margin", f"{avg_margin:.1f}%")
+        st.metric("Avg Margin", format_percentage(avg_margin))
     with col4:
-        st.metric("Outstanding", f"₹{total_outstanding:,.0f}")
+        st.metric("Outstanding", format_indian_currency(total_outstanding))
     with col5:
-        st.metric("Inventory Value", f"₹{total_inv_value:,.0f}")
+        st.metric("Inventory Value", format_indian_currency(total_inv_value))
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── This month vs last ─────────────────────────────────────────────────────
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("This Month Revenue", f"₹{rev_m:,.0f}", delta=rev_delta)
+        st.metric("This Month Revenue", format_indian_currency(rev_m), delta=rev_delta)
     with col2:
-        st.metric("This Month Profit", f"₹{prof_m:,.0f}", delta=prof_delta)
+        st.metric("This Month Profit", format_indian_currency(prof_m), delta=prof_delta)
 
     st.divider()
 
@@ -127,7 +128,7 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
                 for _, r in low.iterrows():
                     st.markdown(
                         f"<span class='pill-red'>{r['Products']}</span>"
-                        f" &nbsp; {r['Closing Stock']:.0f} units · {r['Days of stock']:.0f}d",
+                        f" &nbsp; {format_indian_number(r['Closing Stock'])} units · {r['Days of stock']:.0f}d",
                         unsafe_allow_html=True,
                     )
                     st.markdown("")
@@ -147,7 +148,7 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
             for _, r in overdue.head(6).iterrows():
                 st.markdown(
                     f"<span class='pill-red'>{r['Cust']}</span>"
-                    f" &nbsp; ₹{r['Sum of balance']:,.0f} · {r['Days outstanding']:.0f}d",
+                    f" &nbsp; {format_indian_currency(r['Sum of balance'])} · {r['Days outstanding']:.0f}d",
                     unsafe_allow_html=True,
                 )
                 st.markdown("")
@@ -203,13 +204,15 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
                        legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig2, use_container_width=True)
 
-    # Summary table
+    # Summary table - format with Indian style
+    monthly_display = monthly.rename(columns={"Revenue": "Revenue (₹)", "Profit": "Profit (₹)"}).copy()
+    
+    # Format numeric columns
+    for col in ["Revenue (₹)", "Profit (₹)"]:
+        monthly_display[col] = monthly_display[col].apply(lambda x: format_indian_currency(x))
+    monthly_display["Margin%"] = monthly_display["Margin%"].apply(lambda x: format_percentage(x))
+    
     st.dataframe(
-        monthly.rename(columns={"Revenue": "Revenue (₹)", "Profit": "Profit (₹)"}),
+        monthly_display,
         use_container_width=True, hide_index=True,
-        column_config={
-            "Revenue (₹)": st.column_config.NumberColumn(format="₹%.0f"),
-            "Profit (₹)":  st.column_config.NumberColumn(format="₹%.0f"),
-            "Margin%":     st.column_config.NumberColumn(format="%.1f%%"),
-        }
     )

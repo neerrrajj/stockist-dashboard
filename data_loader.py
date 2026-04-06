@@ -153,7 +153,7 @@ def load_data() -> dict[str, pd.DataFrame]:
         "purchase":    _clean_purchase(raw.get("Purchase", pd.DataFrame())),
         "payments":    _clean_payments(raw.get("Payments", pd.DataFrame())),
         "outstanding": _clean_outstanding(raw.get("Outstanding", pd.DataFrame())),
-        "inventory":   _clean_inventory(raw.get("Inventory Control", pd.DataFrame())),
+        "inventory":   _clean_inventory(raw.get("Inventory", pd.DataFrame())),
         "batch":       _clean_batch(raw.get("Batch", pd.DataFrame())),
         "pricelist":   _clean_pricelist(raw.get("Price list", pd.DataFrame())),
     }

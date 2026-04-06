@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
+from formatters import format_indian_currency, format_indian_number, format_date_long
 
 PLOT_THEME = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -133,13 +134,14 @@ def render(sales, payments, outstanding):
         "Sum of Payments", "Sum of balance", "Days outstanding", "Age bucket",
     ]].sort_values("Days outstanding", ascending=False)
 
+    # Format for Indian style
+    filtered_formatted = filtered_display.copy()
+    filtered_formatted["Inv date"] = filtered_formatted["Inv date"].apply(lambda x: format_date_long(x))
+    for col in ["Sum of Incl Gst", "Sum of Payments", "Sum of balance"]:
+        filtered_formatted[col] = filtered_formatted[col].apply(lambda x: format_indian_currency(x))
+    
     st.dataframe(
-        filtered_display, use_container_width=True, hide_index=True,
-        column_config={
-            "Sum of Incl Gst":  st.column_config.NumberColumn(format="₹%.0f"),
-            "Sum of Payments":  st.column_config.NumberColumn(format="₹%.0f"),
-            "Sum of balance":   st.column_config.NumberColumn(format="₹%.0f"),
-        }
+        filtered_formatted, use_container_width=True, hide_index=True,
     )
 
     st.divider()

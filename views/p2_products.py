@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
+from formatters import format_indian_currency, format_indian_number, format_percentage
 
 PLOT_THEME = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -196,17 +197,22 @@ def render(sales, pricelist):
         "Avg daily units": "Units/Day",
     })
 
+    # Format for Indian style
+    display_formatted = display.copy()
+    for col in ["Revenue", "Profit"]:
+        if col in display_formatted.columns:
+            display_formatted[col] = display_formatted[col].apply(lambda x: format_indian_currency(x))
+    for col in ["Avg Margin %", "Revenue share %"]:
+        if col in display_formatted.columns:
+            display_formatted[col] = display_formatted[col].apply(lambda x: format_percentage(x))
+    for col in ["Units", "Units/Day"]:
+        if col in display_formatted.columns:
+            display_formatted[col] = display_formatted[col].apply(lambda x: format_indian_number(x, 2 if 'Day' in col else 0))
+    
     st.dataframe(
-        display,
+        display_formatted,
         use_container_width=True,
         hide_index=True,
-        column_config={
-            "Revenue":       st.column_config.NumberColumn(format="₹%.0f"),
-            "Profit":        st.column_config.NumberColumn(format="₹%.0f"),
-            "Avg Margin %":  st.column_config.NumberColumn(format="%.1f%%"),
-            "Revenue share %": st.column_config.NumberColumn(format="%.1f%%"),
-            "Units/Day":     st.column_config.NumberColumn(format="%.2f"),
-        }
     )
 
     st.divider()

@@ -1,8 +1,10 @@
 """pages/p3_counters.py  –  Counter / Customer Intelligence"""
 
+import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
+from formatters import format_indian_currency, format_indian_number, format_percentage, format_date_long
 
 PLOT_THEME = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -99,15 +101,17 @@ def render(sales, payments, outstanding):
         "Avg_days_to_pay": "Avg days to pay",
     })
 
+    # Format for Indian style
+    display_formatted = display.copy()
+    for col in ["Revenue (₹)", "Profit (₹)", "Outstanding"]:
+        if col in display_formatted.columns:
+            display_formatted[col] = display_formatted[col].apply(lambda x: format_indian_currency(x))
+    for col in ["Avg margin %"]:
+        if col in display_formatted.columns:
+            display_formatted[col] = display_formatted[col].apply(lambda x: format_percentage(x))
+    
     st.dataframe(
-        display, use_container_width=True, hide_index=True,
-        column_config={
-            "Revenue (₹)":       st.column_config.NumberColumn(format="₹%.0f"),
-            "Profit (₹)":        st.column_config.NumberColumn(format="₹%.0f"),
-            "Avg margin %":      st.column_config.NumberColumn(format="%.1f%%"),
-            "Avg days to pay":   st.column_config.NumberColumn(format="%.1f"),
-            "Outstanding":       st.column_config.NumberColumn(format="₹%.0f"),
-        }
+        display_formatted, use_container_width=True, hide_index=True,
     )
 
     st.divider()
@@ -118,7 +122,7 @@ def render(sales, payments, outstanding):
     with col1:
         st.markdown("<div class='section-label'>Revenue concentration</div>", unsafe_allow_html=True)
         top3_share = summary["Total_revenue"].head(3).sum() / summary["Total_revenue"].sum() * 100
-        st.metric("Top 3 counters share", f"{top3_share:.1f}%",
+        st.metric("Top 3 counters share", format_percentage(top3_share),
                   delta="Concentration risk" if top3_share > 60 else "Healthy spread",
                   delta_color="inverse" if top3_share > 60 else "normal")
 
@@ -129,7 +133,7 @@ def render(sales, payments, outstanding):
             textinfo="label+percent",
             textfont=dict(size=10),
             marker=dict(colors=px.colors.qualitative.Bold),
-            hovertemplate="<b>%{label}</b><br>₹%{value:,.0f}<br>%{percent}<extra></extra>",
+            hovertemplate="<b>%{label}</b><br>₹%{customdata:,.0f}<br>%{percent}<extra></extra>",
         ))
         fig_pie.update_layout(**PLOT_THEME, height=320,
                               showlegend=False,
@@ -185,7 +189,7 @@ def render(sales, payments, outstanding):
         st.metric("Avg Margin", f"{cust_data['Margin%'].mean():.1f}%")
     with c4:
         bal = cust_out["Sum of balance"].clip(lower=0).sum() if not cust_out.empty else 0
-        st.metric("Outstanding", f"₹{bal:,.0f}")
+        st.metric("Outstanding", format_indian_currency(bal))
 
     col_l, col_r = st.columns(2)
 
@@ -227,12 +231,14 @@ def render(sales, payments, outstanding):
     # Invoice-level detail for outstanding
     if not cust_out.empty:
         st.markdown("<div class='section-label'>Outstanding invoices</div>", unsafe_allow_html=True)
+        cust_out_display = cust_out[["Inv no", "Inv date", "Sum of Incl Gst", "Sum of Payments", "Sum of balance", "Days outstanding"]].copy()
+        # Format date
+        cust_out_display["Inv date"] = cust_out_display["Inv date"].apply(lambda x: format_date_long(x))
+        # Format currency
+        for col in ["Sum of Incl Gst", "Sum of Payments", "Sum of balance"]:
+            cust_out_display[col] = cust_out_display[col].apply(lambda x: format_indian_currency(x, 2))
+        
         st.dataframe(
-            cust_out[["Inv no", "Inv date", "Sum of Incl Gst", "Sum of Payments", "Sum of balance", "Days outstanding"]],
+            cust_out_display,
             use_container_width=True, hide_index=True,
-            column_config={
-                "Sum of Incl Gst":  st.column_config.NumberColumn(format="₹%.2f"),
-                "Sum of Payments":  st.column_config.NumberColumn(format="₹%.2f"),
-                "Sum of balance":   st.column_config.NumberColumn(format="₹%.2f"),
-            }
         )

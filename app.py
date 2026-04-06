@@ -21,6 +21,18 @@ html, body, [class*="css"] {
     font-family: 'Sora', sans-serif;
 }
 
+/* Remove top padding */
+.main .block-container {
+    padding-top: 0.5rem !important;
+    padding-bottom: 2rem;
+    max-width: 1400px;
+}
+
+/* Remove sidebar padding */
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 0.5rem !important;
+}
+
 /* Sidebar */
 section[data-testid="stSidebar"] {
     background: #0f0f14;
@@ -29,16 +41,43 @@ section[data-testid="stSidebar"] {
 section[data-testid="stSidebar"] * {
     color: #c9c9d6 !important;
 }
-section[data-testid="stSidebar"] .stRadio label {
-    font-size: 0.85rem;
-    letter-spacing: 0.04em;
-}
 
-/* Main canvas */
-.main .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
-    max-width: 1400px;
+/* Nav buttons - no border, left aligned, active highlight */
+section[data-testid="stSidebar"] button[kind="secondary"],
+section[data-testid="stSidebar"] button[kind="primary"] {
+    background: transparent !important;
+    border: none !important;
+    color: #6b6b80 !important;
+    font-size: 0.85rem !important;
+    font-weight: 400 !important;
+    padding: 0.4rem 0.6rem !important;
+    margin-bottom: 0.1rem !important;
+    border-radius: 6px !important;
+    transition: all 0.15s ease !important;
+    width: 100% !important;
+}
+section[data-testid="stSidebar"] button[kind="primary"] {
+    background: #252536 !important;
+    color: #e8e8f0 !important;
+    font-weight: 500 !important;
+}
+section[data-testid="stSidebar"] button[kind="secondary"]:hover {
+    background: #1a1a24 !important;
+    color: #c9c9d6 !important;
+}
+/* Force left alignment on button content */
+section[data-testid="stSidebar"] button {
+    text-align: left !important;
+}
+section[data-testid="stSidebar"] button > div {
+    justify-content: flex-start !important;
+    text-align: left !important;
+    width: 100% !important;
+    display: flex !important;
+    gap: 0.6rem !important;
+}
+section[data-testid="stSidebar"] button > div > p {
+    text-align: left !important;
 }
 
 /* Metric cards */
@@ -128,30 +167,51 @@ pricelist   = data["pricelist"]
 # ── Sidebar navigation ─────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 📦 Stockist")
-    st.markdown("<div style='font-family:DM Mono,monospace;font-size:0.65rem;color:#6b6b80;letter-spacing:0.08em;margin-bottom:1rem'>SUPER STOCKIST ANALYTICS</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:DM Mono,monospace;font-size:0.65rem;color:#6b6b80;letter-spacing:0.08em'>SUPER STOCKIST ANALYTICS</div>", unsafe_allow_html=True)
     st.divider()
 
-    page = st.radio(
-        "Navigation",
-        [
-            "🏠  Command Center",
-            "📦  Product Intelligence",
-            "🏪  Counter Intelligence",
-            "📬  Receivables & Cash Flow",
-            "📊  Inventory & Restock",
-        ],
-        label_visibility="collapsed",
-    )
+    # Simplified page names
+    pages = [
+        ("home", "🏠", "Home"),
+        ("products", "📦", "Products"),
+        ("counters", "🏪", "Counters"),
+        ("receivables", "📬", "Receivables"),
+        ("inventory", "📊", "Inventory"),
+    ]
+    
+    # Get current page from session state or default
+    if "page" not in st.session_state:
+        st.session_state.page = "home"
+    
+    # Create button navigation
+    for key, icon, name in pages:
+        is_active = st.session_state.page == key
+        btn_type = "primary" if is_active else "secondary"
+        if st.button(f"{icon} {name}", key=f"nav_{key}", use_container_width=True, type=btn_type):
+            st.session_state.page = key
+            st.rerun()
+    
     st.divider()
     if st.button("🔄 Refresh data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-    st.markdown(f"<div style='font-family:DM Mono,monospace;font-size:0.6rem;color:#3a3a50;margin-top:0.5rem'>Last loaded: {__import__('datetime').datetime.now().strftime('%d %b %Y %H:%M')}</div>", unsafe_allow_html=True)
-
+    st.markdown(f"<div style='font-family:DM Mono,monospace;font-size:0.6rem;color:#3a3a50'>Last loaded: {__import__('datetime').datetime.now().strftime('%d %b %H:%M')}</div>", unsafe_allow_html=True)
 
 # ── Page routing ───────────────────────────────────────────────────────────────
-if   page.startswith("🏠"): from views import p1_home;        p1_home.render(sales, purchase, payments, outstanding, inventory, batch)
-elif page.startswith("📦"): from views import p2_products;    p2_products.render(sales, pricelist)
-elif page.startswith("🏪"): from views import p3_counters;    p3_counters.render(sales, payments, outstanding)
-elif page.startswith("📬"): from views import p4_receivables; p4_receivables.render(sales, payments, outstanding)
-elif page.startswith("📊"): from views import p5_inventory;   p5_inventory.render(sales, inventory, batch, pricelist)
+page = st.session_state.page
+
+if page == "home":
+    from views import p1_home
+    p1_home.render(sales, purchase, payments, outstanding, inventory, batch)
+elif page == "products":
+    from views import p2_products
+    p2_products.render(sales, pricelist)
+elif page == "counters":
+    from views import p3_counters
+    p3_counters.render(sales, payments, outstanding)
+elif page == "receivables":
+    from views import p4_receivables
+    p4_receivables.render(sales, payments, outstanding)
+elif page == "inventory":
+    from views import p5_inventory
+    p5_inventory.render(sales, inventory, batch, pricelist)
