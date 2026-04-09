@@ -38,18 +38,22 @@ def _get_gc():
 @st.cache_data(ttl=300, show_spinner=False)
 def load_from_sheets(spreadsheet_id: str) -> dict[str, pd.DataFrame]:
     """Fetch every sheet and return a dict of DataFrames."""
-    gc = _get_gc()
-    sh = gc.open_by_key(spreadsheet_id)
-    sheets = {}
-    for ws in sh.worksheets():
-        data = ws.get_all_values()
-        if not data or len(data) < 2:
-            continue
-        df = pd.DataFrame(data[1:], columns=data[0])
-        # Replace empty strings with NaN
-        df.replace("", pd.NA, inplace=True)
-        sheets[ws.title.strip()] = df
-    return sheets
+    try:
+        gc = _get_gc()
+        sh = gc.open_by_key(spreadsheet_id)
+        sheets = {}
+        for ws in sh.worksheets():
+            data = ws.get_all_values()
+            if not data or len(data) < 2:
+                continue
+            df = pd.DataFrame(data[1:], columns=data[0])
+            # Replace empty strings with NaN
+            df.replace("", pd.NA, inplace=True)
+            sheets[ws.title.strip()] = df
+        return sheets
+    except Exception as e:
+        st.error(f"Failed to load from Google Sheets: {e}")
+        return {}
 
 
 # ── Local xlsx fallback (dev / demo) ─────────────────────────────────────────
@@ -152,11 +156,16 @@ def load_data() -> dict[str, pd.DataFrame]:
         and "spreadsheet_id" in st.secrets
     )
 
+    raw = {}
     if use_sheets:
         raw = load_from_sheets(st.secrets["spreadsheet_id"])
     else:
         xlsx_path = os.environ.get("XLSX_PATH", "data.xlsx")
         raw = load_from_xlsx(xlsx_path)
+    
+    # Ensure raw is a dict
+    if raw is None:
+        raw = {}
 
     return {
         "sales":       _clean_sales(raw.get("Sales", raw.get("Sales ", pd.DataFrame()))),
@@ -172,9 +181,9 @@ def load_data() -> dict[str, pd.DataFrame]:
 # ── Sheet-specific cleaners ───────────────────────────────────────────────────
 
 def _clean_sales(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     # Rename 'Product ' → 'Product'
     df.rename(columns={"Product ": "Product"}, inplace=True)
 
@@ -183,8 +192,14 @@ def _clean_sales(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[col] = df[col].ffill()
 
+    # Safe column access
+    if "Date" not in df.columns:
+        df["Date"] = pd.NaT
+    if "Inv date" not in df.columns:
+        df["Inv date"] = df.get("Date", pd.NaT)
+    
     df["Date"]     = _to_date(df["Date"])
-    df["Inv date"] = _to_date(df.get("Inv date", df["Date"]))
+    df["Inv date"] = _to_date(df["Inv date"])
 
     for col in ["Nos", "Rate", "Gst 18%", "Unit price",
                 "Exl Gst", "Incl Gst", "Profit", "Margin%", "Payments"]:
@@ -208,9 +223,9 @@ def _clean_sales(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _clean_purchase(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     df["Date"] = _to_date(df["Date"].ffill())
     df["Inv no"] = df["Inv no"].ffill()
 
@@ -225,9 +240,9 @@ def _clean_purchase(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _clean_payments(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     df = df[["Date", "Invoice no", "Cust name", "Credit"]].copy()
     df["Date"]   = _to_date(df["Date"])
     df["Credit"] = _to_num(df["Credit"])
@@ -236,9 +251,12 @@ def _clean_payments(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _clean_outstanding(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    # Ensure we have a proper DataFrame with columns
+    if not hasattr(df, 'columns') or df.columns is None:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     
     # Handle different column name variations (SUM vs Sum)
     col_mapping = {}
@@ -307,9 +325,9 @@ def _clean_outstanding(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _clean_inventory(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     df = df[df["Products"].notna()].copy()
     df["Products"] = _normalise_product(df["Products"])
     for col in ["Opening Stock", "Sales", "Closing Stock", "Inventory value"]:
@@ -319,9 +337,9 @@ def _clean_inventory(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _clean_batch(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     df = df[df["Products"].notna()].copy()
     df["Products"]        = _normalise_product(df["Products"])
     df["Discounted rate"] = _to_num(df["Discounted rate"])
@@ -330,9 +348,9 @@ def _clean_batch(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _clean_pricelist(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    df.columns = [c.strip() for c in df.columns]
+    if df is None or df.empty:
+        return pd.DataFrame()
+    df.columns = [str(c).strip() for c in df.columns]
     df = df[["Product", "Weighted avg price"]].dropna(subset=["Product"]).copy()
     df["Product"]            = _normalise_product(df["Product"])
     df["Weighted avg price"] = _to_num(df["Weighted avg price"])
