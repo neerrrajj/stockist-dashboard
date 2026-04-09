@@ -102,16 +102,18 @@ def render(sales, payments, outstanding):
     })
 
     # Format for Indian style
-    display_formatted = display.copy()
-    for col in ["Revenue (₹)", "Profit (₹)", "Outstanding"]:
-        if col in display_formatted.columns:
-            display_formatted[col] = display_formatted[col].apply(lambda x: format_indian_currency(x))
-    for col in ["Avg margin %"]:
-        if col in display_formatted.columns:
-            display_formatted[col] = display_formatted[col].apply(lambda x: format_percentage(x))
-    
+    # Keep numeric values for proper sorting
     st.dataframe(
-        display_formatted, use_container_width=True, hide_index=True,
+        display, 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "Revenue (₹)": st.column_config.NumberColumn(format="₹%.0f"),
+            "Profit (₹)": st.column_config.NumberColumn(format="₹%.0f"),
+            "Avg margin %": st.column_config.NumberColumn(format="%.1f%%"),
+            "Avg days to pay": st.column_config.NumberColumn(format="%.1f"),
+            "Outstanding": st.column_config.NumberColumn(format="₹%.0f"),
+        }
     )
 
     st.divider()
@@ -231,14 +233,21 @@ def render(sales, payments, outstanding):
     # Invoice-level detail for outstanding
     if not cust_out.empty:
         st.markdown("<div class='section-label'>Outstanding invoices</div>", unsafe_allow_html=True)
-        cust_out_display = cust_out[["Inv no", "Inv date", "Sum of Incl Gst", "Sum of Payments", "Sum of balance", "Days outstanding"]].copy()
-        # Format date
-        cust_out_display["Inv date"] = cust_out_display["Inv date"].apply(lambda x: format_date_long(x))
-        # Format currency
-        for col in ["Sum of Incl Gst", "Sum of Payments", "Sum of balance"]:
-            cust_out_display[col] = cust_out_display[col].apply(lambda x: format_indian_currency(x, 2))
+        # Select available columns (Inv date may not be present in new format)
+        display_cols = ["Inv no", "Sum of Incl Gst", "Sum of Payments", "Sum of balance", "Days outstanding"]
+        if "Inv date" in cust_out.columns:
+            display_cols.insert(1, "Inv date")
+        cust_out_display = cust_out[display_cols].copy()
         
+        # Keep numeric values for proper sorting
         st.dataframe(
             cust_out_display,
-            use_container_width=True, hide_index=True,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Sum of Incl Gst": st.column_config.NumberColumn(format="₹%.2f"),
+                "Sum of Payments": st.column_config.NumberColumn(format="₹%.2f"),
+                "Sum of balance": st.column_config.NumberColumn(format="₹%.2f"),
+                "Days outstanding": st.column_config.NumberColumn(format="%.0f"),
+            }
         )

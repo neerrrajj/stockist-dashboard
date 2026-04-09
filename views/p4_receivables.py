@@ -39,8 +39,8 @@ def render(sales, payments, outstanding):
     </div>
     """, unsafe_allow_html=True)
 
-    # Only unpaid / partially paid rows (balance > ₹10 to ignore rounding)
-    unpaid = outstanding[outstanding["Sum of balance"] > 10].copy()
+    # Include all rows with non-zero balance (including negatives for true total)
+    unpaid = outstanding[outstanding["Sum of balance"].abs() > 0.01].copy()
     unpaid["Age bucket"] = unpaid["Days outstanding"].apply(_age_bucket)
     unpaid["Age bucket"] = pd.Categorical(unpaid["Age bucket"], categories=BUCKET_ORDER, ordered=True)
 
@@ -54,13 +54,13 @@ def render(sales, payments, outstanding):
 
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
-        st.metric("Total Outstanding", f"₹{total_out:,.0f}")
+        st.metric("Total Outstanding", format_indian_currency(total_out))
     with c2: 
         st.metric("Unpaid Invoices", str(invoices_out))
     with c3: 
         st.metric("Oldest Invoice", f"{oldest_days:.0f} days")
     with c4: 
-        st.metric("Risky (> 30d)", f"₹{risky:,.0f}")
+        st.metric("Risky (> 30d)", format_indian_currency(risky))
 
     st.divider()
 
@@ -129,19 +129,22 @@ def render(sales, payments, outstanding):
     if bucket_filter:
         filtered = filtered[filtered["Age bucket"].isin(bucket_filter)]
 
-    filtered_display = filtered[[
-        "Cust", "Inv no", "Inv date", "Sum of Incl Gst",
-        "Sum of Payments", "Sum of balance", "Days outstanding", "Age bucket",
-    ]].sort_values("Days outstanding", ascending=False)
+    # Select columns (Inv date no longer available in new sheet format)
+    display_cols = ["Cust", "Inv no", "Sum of Incl Gst",
+                    "Sum of Payments", "Sum of balance", "Days outstanding", "Age bucket"]
+    filtered_display = filtered[display_cols].sort_values("Days outstanding", ascending=False)
 
-    # Format for Indian style
-    filtered_formatted = filtered_display.copy()
-    filtered_formatted["Inv date"] = filtered_formatted["Inv date"].apply(lambda x: format_date_long(x))
-    for col in ["Sum of Incl Gst", "Sum of Payments", "Sum of balance"]:
-        filtered_formatted[col] = filtered_formatted[col].apply(lambda x: format_indian_currency(x))
-    
+    # Keep numeric values for proper sorting, use column_config for formatting
     st.dataframe(
-        filtered_formatted, use_container_width=True, hide_index=True,
+        filtered_display, 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "Sum of Incl Gst": st.column_config.NumberColumn(format="₹%.2f"),
+            "Sum of Payments": st.column_config.NumberColumn(format="₹%.2f"),
+            "Sum of balance": st.column_config.NumberColumn(format="₹%.2f"),
+            "Days outstanding": st.column_config.NumberColumn(format="%.0f"),
+        }
     )
 
     st.divider()
@@ -208,23 +211,7 @@ def render(sales, payments, outstanding):
     )
     st.plotly_chart(fig3, use_container_width=True)
 
-    st.divider()
-
-    # ── Paid vs unpaid invoice ratio over time ────────────────────────────────
-    st.markdown("<div class='section-label'>Paid vs unpaid invoice ratio by month</div>", unsafe_allow_html=True)
-
-    inv_status = (
-        sales.drop_duplicates(subset=["Invoice no"])
-        .groupby(["Month", "Payment status"])
-        .size()
-        .reset_index(name="Count")
-    )
-
-    fig4 = px.bar(
-        inv_status,
-        x="Month", y="Count", color="Payment status",
-        color_discrete_map={"Paid": "#4ade80", "not paid": "#f87171"},
-        barmode="stack",
-    )
-    fig4.update_layout(**PLOT_THEME, height=240, legend=dict(orientation="h", y=1.1))
-    st.plotly_chart(fig4, use_container_width=True)
+    # Note: Payment status column removed from sheet
+    # st.divider()
+    # st.markdown("<div class='section-label'>Paid vs unpaid invoice ratio by month</div>", unsafe_allow_html=True)
+    # ... chart code removed due to missing Payment status column

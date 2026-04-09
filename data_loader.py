@@ -8,6 +8,16 @@ import os
 import pandas as pd
 import streamlit as st
 
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+# Customers to exclude from Outstanding list (e.g., gifts to friends/family)
+# These entries are still in Google Sheets for accounting but hidden from dashboard
+EXCLUDED_CUSTOMERS = [
+    "pavithra",
+    "priya",
+    # Add more names here as needed
+]
+
 # ── Google Sheets helpers ──────────────────────────────────────────────────────
 
 def _get_gc():
@@ -55,12 +65,12 @@ def load_from_xlsx(path: str) -> dict[str, pd.DataFrame]:
 import re
 
 def _clean_number(val):
-    """Clean a single number value by removing currency symbols and commas."""
+    """Clean a single number value by removing currency symbols, commas, and % signs."""
     if pd.isna(val):
         return val
     s = str(val)
-    # Remove currency symbols, commas, and whitespace using regex
-    s = re.sub(r'[₹$,\s]', '', s)
+    # Remove currency symbols, commas, % signs, and whitespace using regex
+    s = re.sub(r'[₹$,%\s]', '', s)
     # Replace unicode minus with regular minus
     s = s.replace('−', '-')
     # Check for invalid values
@@ -229,23 +239,69 @@ def _clean_outstanding(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
     df.columns = [c.strip() for c in df.columns]
-
+    
+    # Handle different column name variations (SUM vs Sum)
+    col_mapping = {}
+    for col in df.columns:
+        if col.lower() == "cust":
+            col_mapping["Cust"] = col
+        elif col.lower() == "inv no":
+            col_mapping["Inv no"] = col
+        elif col.lower() in ["sum of incl gst", "sum of incl Gst".lower()]:
+            col_mapping["Sum of Incl Gst"] = col
+        elif col.lower() == "sum of payments":
+            col_mapping["Sum of Payments"] = col
+        elif col.lower() in ["sum of balance", "total outstanding"]:
+            col_mapping["Sum of balance"] = col
+        elif col.lower() == "inv date":
+            col_mapping["Inv date"] = col
+        elif col.lower() == "debtor days":
+            col_mapping["Debtor days"] = col
+    
     # Forward fill customer name
-    df["Cust"] = df["Cust"].ffill()
+    cust_col = col_mapping.get("Cust", "Cust")
+    df[cust_col] = df[cust_col].ffill()
 
     # Drop subtotal/grand-total rows and blank rows
-    mask_total = df["Cust"].str.contains("Total|Grand", case=False, na=False)
+    mask_total = df[cust_col].str.contains("Total|Grand", case=False, na=False)
     df = df[~mask_total].copy()
-    df = df[df["Inv no"].notna()].copy()
+    
+    # Exclude customers in the exclusion list (case-insensitive)
+    if EXCLUDED_CUSTOMERS:
+        mask_excluded = df[cust_col].str.lower().isin([c.lower() for c in EXCLUDED_CUSTOMERS])
+        df = df[~mask_excluded].copy()
+    
+    inv_no_col = col_mapping.get("Inv no", "Inv no")
+    df = df[df[inv_no_col].notna()].copy()
 
-    df["Inv date"]          = _to_date(df["Inv date"])
-    df["Sum of Incl Gst"]   = _to_num(df["Sum of Incl Gst"])
-    df["Sum of Payments"]   = _to_num(df["Sum of Payments"])
-    df["Sum of balance"]    = _to_num(df["Sum of balance"])
-
-    # Days outstanding from invoice date
-    today = pd.Timestamp.today().normalize()
-    df["Days outstanding"] = (today - df["Inv date"]).dt.days
+    # Parse numeric columns
+    sum_gst_col = col_mapping.get("Sum of Incl Gst", "Sum of Incl Gst")
+    sum_pay_col = col_mapping.get("Sum of Payments", "Sum of Payments")
+    sum_bal_col = col_mapping.get("Sum of balance", "Sum of balance")
+    
+    df[sum_gst_col] = _to_num(df[sum_gst_col])
+    df[sum_pay_col] = _to_num(df[sum_pay_col])
+    df[sum_bal_col] = _to_num(df[sum_bal_col])
+    
+    # Rename columns to standard names
+    df = df.rename(columns={
+        cust_col: "Cust",
+        inv_no_col: "Inv no",
+        sum_gst_col: "Sum of Incl Gst",
+        sum_pay_col: "Sum of Payments",
+        sum_bal_col: "Sum of balance",
+    })
+    
+    # Handle days outstanding - use Debtor days if available, otherwise calculate
+    if "Debtor days" in col_mapping:
+        df["Days outstanding"] = _to_num(df[col_mapping["Debtor days"]])
+    elif "Inv date" in col_mapping:
+        df["Inv date"] = _to_date(df[col_mapping["Inv date"]])
+        today = pd.Timestamp.today().normalize()
+        df["Days outstanding"] = (today - df["Inv date"]).dt.days
+    else:
+        # If no date info, set to 0 or NaN
+        df["Days outstanding"] = 0
 
     return df.reset_index(drop=True)
 

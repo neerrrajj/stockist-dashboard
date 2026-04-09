@@ -120,26 +120,12 @@ def render(sales, pricelist):
     fig.add_vline(x=med_vel, line_dash="dot", line_color="#2a2a40", line_width=1)
     fig.add_hline(y=med_mar, line_dash="dot", line_color="#2a2a40", line_width=1)
 
-    # Quadrant labels
-    x_max = prod["Avg daily units"].max() * 1.1
-    y_max = prod["Margin_pct"].max() * 1.1
-    for txt, x, y in [
-        ("STARS ⭐", x_max * 0.85, y_max * 0.92),
-        ("CASH COWS 🐄", x_max * 0.85, y_max * 0.08),
-        ("GEMS 💎", x_max * 0.05, y_max * 0.92),
-        ("DOGS 💀", x_max * 0.05, y_max * 0.08),
-    ]:
-        fig.add_annotation(
-            x=x, y=y, text=txt, showarrow=False,
-            font=dict(size=9, color="#3a3a50", family="DM Mono, monospace"),
-        )
-
     fig.update_layout(
         **PLOT_THEME,
         height=440,
         xaxis_title="Avg units / day →  (velocity)",
         yaxis_title="Avg margin %  →  (profitability)",
-        legend=dict(orientation="h", y=-0.12),
+        showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -197,22 +183,19 @@ def render(sales, pricelist):
         "Avg daily units": "Units/Day",
     })
 
-    # Format for Indian style
-    display_formatted = display.copy()
-    for col in ["Revenue", "Profit"]:
-        if col in display_formatted.columns:
-            display_formatted[col] = display_formatted[col].apply(lambda x: format_indian_currency(x))
-    for col in ["Avg Margin %", "Revenue share %"]:
-        if col in display_formatted.columns:
-            display_formatted[col] = display_formatted[col].apply(lambda x: format_percentage(x))
-    for col in ["Units", "Units/Day"]:
-        if col in display_formatted.columns:
-            display_formatted[col] = display_formatted[col].apply(lambda x: format_indian_number(x, 2 if 'Day' in col else 0))
-    
+    # Keep numeric values for proper sorting, use column_config for formatting
     st.dataframe(
-        display_formatted,
+        display,
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Revenue": st.column_config.NumberColumn(format="₹%.0f"),
+            "Profit": st.column_config.NumberColumn(format="₹%.0f"),
+            "Avg Margin %": st.column_config.NumberColumn(format="%.1f%%"),
+            "Revenue share %": st.column_config.NumberColumn(format="%.1f%%"),
+            "Units": st.column_config.NumberColumn(format="%.0f"),
+            "Units/Day": st.column_config.NumberColumn(format="%.2f"),
+        }
     )
 
     st.divider()

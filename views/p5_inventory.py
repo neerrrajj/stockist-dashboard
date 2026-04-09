@@ -147,17 +147,20 @@ def render(sales, inventory, batch, pricelist):
         "Suggested restock value": "Restock Value (₹)",
     })
 
-    # Format for Indian style
-    restock_formatted = restock_table.copy()
-    for col in ["Closing Stock", "Units/Day", "Days Left", f"Restock Qty ({RESTOCK_DAYS}d)"]:
-        if col in restock_formatted.columns:
-            restock_formatted[col] = restock_formatted[col].apply(lambda x: format_indian_number(x, 2 if 'Day' in col and 'Left' not in col else 0))
-    for col in ["Inventory value", "Restock Value (₹)", "Avg cost"]:
-        if col in restock_formatted.columns:
-            restock_formatted[col] = restock_formatted[col].apply(lambda x: format_indian_currency(x))
-    
+    # Keep numeric values for proper sorting
     st.dataframe(
-        restock_formatted, use_container_width=True, hide_index=True,
+        restock_table, 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "Closing Stock": st.column_config.NumberColumn(format="%.0f"),
+            "Units/Day": st.column_config.NumberColumn(format="%.2f"),
+            "Days Left": st.column_config.NumberColumn(format="%.0f"),
+            f"Restock Qty ({RESTOCK_DAYS}d)": st.column_config.NumberColumn(format="%.0f"),
+            "Inventory value": st.column_config.NumberColumn(format="₹%.0f"),
+            "Restock Value (₹)": st.column_config.NumberColumn(format="₹%.0f"),
+            "Avg cost": st.column_config.NumberColumn(format="₹%.0f"),
+        }
     )
 
     total_restock_value = inv["Suggested restock value"].sum()
@@ -218,14 +221,15 @@ def render(sales, inventory, batch, pricelist):
 
         batch_display["Flag"] = batch_display["Days in Stock"].apply(_age_color)
 
-        # Format for Indian style
-        batch_formatted = batch_display.copy()
-        batch_formatted["Date"] = batch_formatted["Date"].apply(lambda x: format_date_short(x))
-        batch_formatted["Purchase Cost"] = batch_formatted["Purchase Cost"].apply(lambda x: format_indian_currency(x, 2))
-        batch_formatted["Days in Stock"] = batch_formatted["Days in Stock"].apply(lambda x: format_indian_number(x))
-        
+        # Keep numeric values for proper sorting
         st.dataframe(
-            batch_formatted, use_container_width=True, hide_index=True,
+            batch_display, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Purchase Cost": st.column_config.NumberColumn(format="₹%.2f"),
+                "Days in Stock": st.column_config.NumberColumn(format="%.0f"),
+            }
         )
     else:
         st.info("No batch data available.")

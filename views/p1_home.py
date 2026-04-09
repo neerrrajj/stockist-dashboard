@@ -29,7 +29,7 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     total_revenue  = sales["Incl Gst"].sum()
     total_profit   = sales["Profit"].sum()
     avg_margin     = sales["Margin%"].mean()
-    total_outstanding = outstanding["Sum of balance"].clip(lower=0).sum()
+    total_outstanding = outstanding["Sum of balance"].sum()
     total_inv_value   = inventory["Inventory value"].sum()
 
     # This month
@@ -204,15 +204,15 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
                        legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig2, use_container_width=True)
 
-    # Summary table - format with Indian style
+    # Summary table - keep numeric for proper sorting
     monthly_display = monthly.rename(columns={"Revenue": "Revenue (₹)", "Profit": "Profit (₹)"}).copy()
-    
-    # Format numeric columns
-    for col in ["Revenue (₹)", "Profit (₹)"]:
-        monthly_display[col] = monthly_display[col].apply(lambda x: format_indian_currency(x))
-    monthly_display["Margin%"] = monthly_display["Margin%"].apply(lambda x: format_percentage(x))
     
     st.dataframe(
         monthly_display,
         use_container_width=True, hide_index=True,
+        column_config={
+            "Revenue (₹)": st.column_config.NumberColumn(format="₹%.0f"),
+            "Profit (₹)": st.column_config.NumberColumn(format="₹%.0f"),
+            "Margin%": st.column_config.NumberColumn(format="%.1f%%"),
+        }
     )
