@@ -19,10 +19,6 @@ RESTOCK_DAYS = 30  # how many days supply to reorder for
 
 def render(sales, inventory, batch, pricelist):
     st.markdown("""
-    <div class='page-header'>
-        <h1>Inventory & Restock Planning</h1>
-        <span>Stock levels · Days remaining · Capital locked</span>
-    </div>
     """, unsafe_allow_html=True)
 
     # today = pd.Timestamp.today().normalize()

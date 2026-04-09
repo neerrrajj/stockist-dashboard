@@ -29,10 +29,6 @@ def _payment_score(avg_days, pct_unpaid):
 
 def render(sales, payments, outstanding):
     st.markdown("""
-    <div class='page-header'>
-        <h1>Counter Intelligence</h1>
-        <span>Payment behaviour · Customer health</span>
-    </div>
     """, unsafe_allow_html=True)
 
     # ── Build per-counter stats ────────────────────────────────────────────────

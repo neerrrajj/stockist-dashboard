@@ -28,6 +28,20 @@ html, body, [class*="css"] {
     max-width: 1400px;
 }
 
+/* Force 2 columns on mobile */
+@media (max-width: 768px) {
+    /* Target Streamlit column containers in horizontal blocks */
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: calc(50% - 1rem) !important;
+        min-width: calc(50% - 1rem) !important;
+        max-width: calc(50% - 1rem) !important;
+        flex: 0 0 calc(50% - 1rem) !important;
+    }
+}
+
 /* Remove sidebar padding */
 section[data-testid="stSidebar"] .block-container {
     padding-top: 0.5rem !important;

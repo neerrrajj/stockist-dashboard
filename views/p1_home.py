@@ -17,11 +17,15 @@ PLOT_THEME = dict(
 
 def render(sales, purchase, payments, outstanding, inventory, batch):
     st.markdown("""
-    <div class='page-header'>
-        <h1>Command Center</h1>
-        <span>Business at a glance</span>
-    </div>
     """, unsafe_allow_html=True)
+
+    # Safety check for missing columns
+    required_sales_cols = ["Incl Gst", "Profit", "Margin%", "Month", "Date", "Product", "Cust", "Nos", "Invoice no"]
+    missing_cols = [c for c in required_sales_cols if c not in sales.columns]
+    if missing_cols:
+        st.error(f"Missing columns in Sales data: {missing_cols}")
+        st.info("This may be due to a temporary loading issue. Please refresh the page.")
+        return
 
     today = pd.Timestamp.today().normalize()
     
@@ -73,6 +77,9 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     prof_m = sales_m["Profit"].sum()
     prof_pm = sales_pm["Profit"].sum()
     
+    # Business margin (weighted by revenue)
+    business_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+    
     # =========================================================================
     # SECTION 1: CORE BUSINESS METRICS (4 columns)
     # =========================================================================
@@ -81,12 +88,39 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Total Revenue", format_indian_currency(total_revenue))
+        # Native-style delta pill without arrow
+        st.markdown(
+            f"<div style='margin-top:-1rem;margin-bottom:1rem;'>"
+            f"<span style='background:rgba(74, 222, 128, 0.2);color:rgb(60, 220, 100);"
+            f"padding:2px 8px;border-radius:60px;font-size:0.85rem;"
+            f"font-family:\"Sora\", sans-serif;font-weight:400;'>"
+            f"{format_percentage(collection_rate)} collected</span></div>",
+            unsafe_allow_html=True
+        )
     with c2:
         st.metric("Total Profit", format_indian_currency(total_profit))
+        st.markdown(
+            f"<div style='margin-top:-1rem;margin-bottom:1rem;'>"
+            f"<span style='background:rgba(74, 222, 128, 0.2);color:rgb(60, 220, 100);"
+            # f"<span style='background:rgba(20, 40, 80, 0.9); color: rgb(100, 180, 255);"
+            f"padding:2px 8px;border-radius:60px;font-size:0.85rem;"
+            f"font-family:\"Sora\", sans-serif;font-weight:400;'>"
+            f"{format_percentage(business_margin)} business margin</span></div>",
+            unsafe_allow_html=True
+        )
     with c3:
-        st.metric("Avg Margin", format_percentage(avg_margin))
+        rev_delta = rev_m - rev_pm
+        # Sign must come first for Streamlit to detect color
+        rev_sign = "+" if rev_delta >= 0 else "-"
+        rev_abs = format_indian_currency(abs(rev_delta)).replace("₹", "")
+        st.metric("This Month Revenue", format_indian_currency(rev_m), 
+                  delta=f"{rev_sign}₹{rev_abs}")
     with c4:
-        st.metric("Collection Rate", format_percentage(collection_rate))
+        prof_delta = prof_m - prof_pm
+        prof_sign = "+" if prof_delta >= 0 else "-"
+        prof_abs = format_indian_currency(abs(prof_delta)).replace("₹", "")
+        st.metric("This Month Profit", format_indian_currency(prof_m),
+                  delta=f"{prof_sign}₹{prof_abs}")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -114,17 +148,13 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("Overdue (>30d)", format_indian_currency(overdue_amount))
-    with c2:
         st.metric("Inventory Value", format_indian_currency(total_inv_value))
+    with c2:
+        st.metric("Total Units Sold", format_indian_number(total_units_sold))
     with c3:
-        rev_delta = rev_m - rev_pm
-        st.metric("This Month Revenue", format_indian_currency(rev_m), 
-                  delta=f"{format_indian_currency(rev_delta)} vs last month")
+        st.metric("Avg Margin", format_percentage(avg_margin))
     with c4:
-        prof_delta = prof_m - prof_pm
-        st.metric("This Month Profit", format_indian_currency(prof_m),
-                  delta=f"{format_indian_currency(prof_delta)} vs last month")
+        st.metric("Overdue (>30d)", format_indian_currency(overdue_amount))
     
     st.divider()
 

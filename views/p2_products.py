@@ -18,10 +18,6 @@ PLOT_THEME = dict(
 
 def render(sales, pricelist):
     st.markdown("""
-    <div class='page-header'>
-        <h1>Product Intelligence</h1>
-        <span>Velocity · Margin · Mix</span>
-    </div>
     """, unsafe_allow_html=True)
 
     if sales.empty:

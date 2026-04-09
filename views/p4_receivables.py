@@ -33,10 +33,6 @@ BUCKET_COLORS = ["#4ade80", "#86efac", "#fbbf24", "#f97316", "#f87171"]
 
 def render(sales, payments, outstanding):
     st.markdown("""
-    <div class='page-header'>
-        <h1>Receivables & Cash Flow</h1>
-        <span>Ageing · Collections · Payment rhythm</span>
-    </div>
     """, unsafe_allow_html=True)
 
     # Include all rows with non-zero balance (including negatives for true total)
