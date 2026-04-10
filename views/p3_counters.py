@@ -1,10 +1,9 @@
 """pages/p3_counters.py  –  Counter / Customer Intelligence"""
 
-import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
-from formatters import format_indian_currency, format_indian_number, format_percentage, format_date_long
+from formatters import format_indian_currency, format_percentage
 
 PLOT_THEME = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -28,8 +27,21 @@ def _payment_score(avg_days, pct_unpaid):
 
 
 def render(sales, payments, outstanding):
+    from data_loader import EXCLUDED_CUSTOMERS
+    
     st.markdown("""
     """, unsafe_allow_html=True)
+
+    # Exclude certain customers from display lists (but keep in totals)
+    if EXCLUDED_CUSTOMERS:
+        if not outstanding.empty:
+            outstanding = outstanding[~outstanding["Cust"].str.lower().isin(
+                [c.lower() for c in EXCLUDED_CUSTOMERS]
+            )].copy()
+        if not sales.empty:
+            sales = sales[~sales["Cust"].str.lower().isin(
+                [c.lower() for c in EXCLUDED_CUSTOMERS]
+            )].copy()
 
     # ── Build per-counter stats ────────────────────────────────────────────────
     # Revenue & profit from sales

@@ -284,10 +284,8 @@ def _clean_outstanding(df: pd.DataFrame) -> pd.DataFrame:
     mask_total = df[cust_col].str.contains("Total|Grand", case=False, na=False)
     df = df[~mask_total].copy()
     
-    # Exclude customers in the exclusion list (case-insensitive)
-    if EXCLUDED_CUSTOMERS:
-        mask_excluded = df[cust_col].str.lower().isin([c.lower() for c in EXCLUDED_CUSTOMERS])
-        df = df[~mask_excluded].copy()
+    # Note: Excluded customers are filtered in the views, not here
+    # This ensures they're counted in totals but hidden in lists
     
     inv_no_col = col_mapping.get("Inv no", "Inv no")
     df = df[df[inv_no_col].notna()].copy()

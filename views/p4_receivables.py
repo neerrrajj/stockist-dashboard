@@ -32,21 +32,34 @@ BUCKET_COLORS = ["#4ade80", "#86efac", "#fbbf24", "#f97316", "#f87171"]
 
 
 def render(sales, payments, outstanding):
+    from data_loader import EXCLUDED_CUSTOMERS
+    
     st.markdown("""
     """, unsafe_allow_html=True)
 
-    # Include all rows with non-zero balance (including negatives for true total)
-    unpaid = outstanding[outstanding["Sum of balance"].abs() > 0.01].copy()
-    unpaid["Age bucket"] = unpaid["Days outstanding"].apply(_age_bucket)
-    unpaid["Age bucket"] = pd.Categorical(unpaid["Age bucket"], categories=BUCKET_ORDER, ordered=True)
-
-    # today = pd.Timestamp.today().normalize()
+    # Include all rows with non-zero balance for totals (including excluded customers)
+    unpaid_all = outstanding[outstanding["Sum of balance"].abs() > 0.01].copy()
+    
+    # Exclude certain customers from list view only
+    if EXCLUDED_CUSTOMERS and not outstanding.empty:
+        outstanding_display = outstanding[~outstanding["Cust"].str.lower().isin(
+            [c.lower() for c in EXCLUDED_CUSTOMERS]
+        )].copy()
+    else:
+        outstanding_display = outstanding.copy()
+    unpaid_display = outstanding_display[outstanding_display["Sum of balance"].abs() > 0.01].copy()
+    
+    # Apply age bucket to display data
+    unpaid_display["Age bucket"] = unpaid_display["Days outstanding"].apply(_age_bucket)
+    unpaid_display["Age bucket"] = pd.Categorical(unpaid_display["Age bucket"], categories=BUCKET_ORDER, ordered=True)
 
     # ── Top KPIs ───────────────────────────────────────────────────────────────
-    total_out  = unpaid["Sum of balance"].sum()
-    invoices_out = len(unpaid)
-    oldest_days  = unpaid["Days outstanding"].max() if not unpaid.empty else 0
-    risky = unpaid[unpaid["Days outstanding"] > 30]["Sum of balance"].sum()
+    # Use unpaid_all for totals (includes excluded customers)
+    unpaid_all["Age bucket"] = unpaid_all["Days outstanding"].apply(_age_bucket)
+    total_out  = unpaid_all["Sum of balance"].sum()
+    invoices_out = len(unpaid_all)
+    oldest_days  = unpaid_all["Days outstanding"].max() if not unpaid_all.empty else 0
+    risky = unpaid_all[unpaid_all["Days outstanding"] > 30]["Sum of balance"].sum()
 
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
@@ -67,7 +80,7 @@ def render(sales, payments, outstanding):
         st.markdown("<div class='section-label'>Ageing bucket breakdown</div>", unsafe_allow_html=True)
 
         buckets = (
-            unpaid.groupby("Age bucket", observed=True)["Sum of balance"]
+            unpaid_display.groupby("Age bucket", observed=True)["Sum of balance"]
             .sum()
             .reindex(BUCKET_ORDER)
             .fillna(0)
@@ -109,7 +122,7 @@ def render(sales, payments, outstanding):
     with col_f1:
         cust_filter = st.multiselect(
             "Filter by counter",
-            options=sorted(unpaid["Cust"].unique()),
+            options=sorted(unpaid_display["Cust"].unique()),
             default=[],
         )
     with col_f2:
@@ -119,7 +132,7 @@ def render(sales, payments, outstanding):
             default=[],
         )
 
-    filtered = unpaid.copy()
+    filtered = unpaid_display.copy()
     if cust_filter:
         filtered = filtered[filtered["Cust"].isin(cust_filter)]
     if bucket_filter:
@@ -176,7 +189,7 @@ def render(sales, payments, outstanding):
     st.markdown("<div class='section-label'>Collection efficiency by counter</div>", unsafe_allow_html=True)
 
     cust_eff = (
-        outstanding.groupby("Cust")
+        unpaid_display.groupby("Cust")
         .agg(Billed=("Sum of Incl Gst", "sum"), Collected=("Sum of Payments", "sum"))
         .reset_index()
     )

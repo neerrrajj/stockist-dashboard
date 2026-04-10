@@ -16,8 +16,18 @@ PLOT_THEME = dict(
 
 
 def render(sales, purchase, payments, outstanding, inventory, batch):
+    from data_loader import EXCLUDED_CUSTOMERS
+    
     st.markdown("""
     """, unsafe_allow_html=True)
+
+    # Filter excluded customers from display lists (but keep in totals)
+    if EXCLUDED_CUSTOMERS and not outstanding.empty:
+        outstanding_display = outstanding[~outstanding["Cust"].str.lower().isin(
+            [c.lower() for c in EXCLUDED_CUSTOMERS]
+        )].copy()
+    else:
+        outstanding_display = outstanding.copy()
 
     # Safety check for missing columns
     required_sales_cols = ["Incl Gst", "Profit", "Margin%", "Month", "Date", "Product", "Cust", "Nos", "Invoice no"]
@@ -52,19 +62,19 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     
     # Collection metrics
     collection_rate = (total_payments_received / total_revenue * 100) if total_revenue > 0 else 0
-    avg_days_to_collect = outstanding["Days outstanding"].mean() if not outstanding.empty else 0
+    # avg_days_to_collect = outstanding["Days outstanding"].mean() if not outstanding.empty else 0
     overdue_amount = outstanding[outstanding["Days outstanding"] > 30]["Sum of balance"].sum() if not outstanding.empty else 0
     
     # Inventory metrics
     total_inv_value = inventory["Inventory value"].sum() if not inventory.empty else 0
     total_units_sold = sales["Nos"].sum()
-    unique_products_sold = sales["Product"].nunique()
+    # unique_products_sold = sales["Product"].nunique()
     
     # Top performers
-    top_product = sales.groupby("Product")["Incl Gst"].sum().idxmax() if not sales.empty else "N/A"
-    top_product_revenue = sales.groupby("Product")["Incl Gst"].sum().max() if not sales.empty else 0
-    top_counter = sales.groupby("Cust")["Incl Gst"].sum().idxmax() if not sales.empty else "N/A"
-    top_counter_revenue = sales.groupby("Cust")["Incl Gst"].sum().max() if not sales.empty else 0
+    # top_product = sales.groupby("Product")["Incl Gst"].sum().idxmax() if not sales.empty else "N/A"
+    # top_product_revenue = sales.groupby("Product")["Incl Gst"].sum().max() if not sales.empty else 0
+    # top_counter = sales.groupby("Cust")["Incl Gst"].sum().idxmax() if not sales.empty else "N/A"
+    # top_counter_revenue = sales.groupby("Cust")["Incl Gst"].sum().max() if not sales.empty else 0
     
     # Monthly metrics
     this_month = today.to_period("M").strftime("%Y-%m")
@@ -152,7 +162,7 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     with c2:
         st.metric("Total Units Sold", format_indian_number(total_units_sold))
     with c3:
-        st.metric("Avg Margin", format_percentage(avg_margin))
+        st.metric("Avg Margin per Product Sold", format_percentage(avg_margin))
     with c4:
         st.metric("Overdue (>30d)", format_indian_currency(overdue_amount))
     
@@ -172,16 +182,22 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
         .reset_index()
     )
     weekly.columns = ["Week", "Revenue"]
+    
+    # Create week range labels (e.g., "16 Feb - 23 Feb")
+    weekly["Week_Label"] = weekly["Week"].apply(
+        lambda x: f"{x.strftime('%d %b')} - {(x + pd.Timedelta(days=6)).strftime('%d %b')}"
+    )
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=weekly["Week"], y=weekly["Revenue"],
+        x=weekly["Week_Label"], y=weekly["Revenue"],
+        name="Revenue",
         marker_color="#6366f1",
         marker_line_width=0,
-        hovertemplate="<b>Week %{x|%d %b}</b><br>₹%{y:,.0f}<extra></extra>",
+        hovertemplate="<b>%{x}</b><br>₹%{y:,.0f}<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
-        x=weekly["Week"], y=weekly["Revenue"].rolling(3, min_periods=1).mean(),
+        x=weekly["Week_Label"], y=weekly["Revenue"].rolling(3, min_periods=1).mean(),
         mode="lines", line=dict(color="#a78bfa", width=2, dash="dot"),
         name="3-week avg", hovertemplate="₹%{y:,.0f}<extra></extra>",
     ))
@@ -228,9 +244,9 @@ def render(sales, purchase, payments, outstanding, inventory, batch):
     # 2. Overdue payments (> 30 days)
     with col_b:
         st.markdown("**🔴 Overdue > 30 days**")
-        if not outstanding.empty:
-            overdue = outstanding[
-                outstanding["Sum of balance"] > 10
+        if not outstanding_display.empty:
+            overdue = outstanding_display[
+                outstanding_display["Sum of balance"] > 10
             ].copy()
             overdue = overdue[overdue["Days outstanding"] > 30].sort_values(
                 "Days outstanding", ascending=False
